@@ -22,8 +22,18 @@ export const mock_products: any[] = [
     width: 299,
     price: 29.45,
     rating: 4
-    }, {
-    id: 3,
+    },  {
+        id: 3,
+        title: "Sweet fresh blueberry",
+        type: "fruit",
+        description: "Sweet fresh stawberry on the wooden table",
+        filename: "1.jpg",
+        height: 450,
+        width: 299,
+        price: 29.45,
+        rating: 4
+        },{
+    id: 4,
     title: "Asparagus",
     type: "vegetable",
     description: "Asparagus with ham on the wooden table",
