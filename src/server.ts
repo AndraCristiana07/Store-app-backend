@@ -2,20 +2,19 @@ import express from "express";
 import cors from "cors";
 import { mock_products, mock_users } from "./data";
 import jwt from "jsonwebtoken";
-import audit from 'express-requests-logger'
-import sqlite3, { } from 'sqlite3';
-import {Database, open } from 'sqlite';
+import audit from "express-requests-logger";
+import sqlite3 from "sqlite3";
+import { Database, open } from "sqlite";
 
-
-let db:Database;
+let db: Database;
 (async () => {
-    // open the database
-    db = await open({
-      filename: './database.db',
-      driver: sqlite3.Database
-    })
+  // open the database
+  db = await open({
+    filename: "./database.db",
+    driver: sqlite3.Database,
+  });
 
-    await db.exec(`CREATE TABLE IF NOT EXISTS PRODUCTS (
+  await db.exec(`CREATE TABLE IF NOT EXISTS PRODUCTS (
         id INTEGER PRIMARY KEY,
         title TEXT,
         type TEXT,
@@ -27,124 +26,196 @@ let db:Database;
         rating INTEGER
     )
     `);
-    for(let product of mock_products){
-        await db.run(`INSERT OR REPLACE INTO PRODUCTS (id, title, type, description, filename, height, width, price, rating)
+  for (let product of mock_products) {
+    await db.run(
+      `INSERT OR REPLACE INTO PRODUCTS (id, title, type, description, filename, height, width, price, rating)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-            product.id,
-            product.title,
-            product.type,
-            product.description,
-            product.filename,
-            product.height,
-            product.width,
-            product.price,
-            product.rating
-        ]);
-        }
-    
-    await db.exec(`CREATE TABLE IF NOT EXISTS USERS (
+      [
+        product.id,
+        product.title,
+        product.type,
+        product.description,
+        product.filename,
+        product.height,
+        product.width,
+        product.price,
+        product.rating,
+      ],
+    );
+  }
+
+  await db.exec(`CREATE TABLE IF NOT EXISTS USERS (
         id INTEGER PRIMARY KEY,
         name TEXT,
         email TEXT,
         password TEXT
         )
 
-    `);	
-    for(let user of mock_users){
-        await db.run(`INSERT OR REPLACE INTO USERS (id, name, email, password)
+    `);
+  for (let user of mock_users) {
+    await db.run(
+      `INSERT OR REPLACE INTO USERS (id, name, email, password)
         VALUES (?, ?, ?, ?)`,
-        [
-            user.id,
-            user.name,
-            user.email,
-            user.password
-        ]);
-        }
-
+      [user.id, user.name, user.email, user.password],
+    );
+  }
 })();
-
 
 const app = express();
 app.use(audit());
 app.use(express.json());
-app.use(cors({
-    credentials:true,
-    origin:["http://localhost:4200"]
-}));
+app.use(
+  cors({
+    credentials: true,
+    origin: ["http://localhost:4200"],
+  }),
+);
 
-app.get("/api/products",  async (req, res) => {
-    // res.send(mock_products);
-    const products = await db.all('SELECT * FROM PRODUCTS');
-    // console.log(products);
-    res.send(products);
-
-})
+app.get("/api/products", async (req, res) => {
+  // res.send(mock_products);
+  const products = await db.all("SELECT * FROM PRODUCTS");
+  // console.log(products);
+  res.send(products);
+});
 
 app.get("/api/products/types", async (req, res) => {
-    const types = await db.all('SELECT DISTINCT type FROM PRODUCTS');
-    // const types = mock_products.map(p => p.type);
-    // res.send(Array.from(new Set(types)));
-    // console.log(types)
-    res.send(types.map(t => t.type));
-})
+  const types = await db.all("SELECT DISTINCT type FROM PRODUCTS");
+  // const types = mock_products.map(p => p.type);
+  // res.send(Array.from(new Set(types)));
+  // console.log(types)
+  res.send(types.map((t) => t.type));
+});
 
 app.get("/api/products/:id", async (req, res) => {
-    // const id = req.params.id;
-    // const product = mock_products.find(p => p.id == id);
-    // res.send(product);
-    const product = await db.get('SELECT * FROM PRODUCTS WHERE id = ?', [req.params.id]);	
-    console.log(product);
-    res.send(product);
-})
-    
+  // const id = req.params.id;
+  // const product = mock_products.find(p => p.id == id);
+  // res.send(product);
+  const product = await db.get("SELECT * FROM PRODUCTS WHERE id = ?", [
+    req.params.id,
+  ]);
+  console.log(product);
+  res.send(product);
+});
 
 app.get("/api/products/types/:type", async (req, res) => {
-    // const type = req.params.type;
-    // const products = mock_products.filter(p => 
-    //     p.type.toLowerCase().includes(type.toLowerCase()));
-    // res.send(products);
-    const type = await db.all('SELECT * FROM PRODUCTS WHERE type = ?', [req.params.type]);
-    // console.log(type);
-    res.send(type);
+  // const type = req.params.type;
+  // const products = mock_products.filter(p =>
+  //     p.type.toLowerCase().includes(type.toLowerCase()));
+  // res.send(products);
+  const type = await db.all("SELECT * FROM PRODUCTS WHERE type = ?", [
+    req.params.type,
+  ]);
+  // console.log(type);
+  res.send(type);
+});
 
-})
+app.get("/api/products/search/:searchTerm", async (req, res) => {
+  // const searchTerm = req.params.searchTerm;
+  // const products = mock_products.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()));
+  const products = await db.all("SELECT * FROM PRODUCTS WHERE title LIKE ?", [
+    `%${req.params.searchTerm}%`,
+  ]);
+  res.send(products);
+});
 
-
-
-app.get("/api/products/search/:searchTerm", async (req,res) => {
-    // const searchTerm = req.params.searchTerm;
-    // const products = mock_products.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()));
-    const products = await db.all('SELECT * FROM PRODUCTS WHERE title LIKE ?', [`%${req.params.searchTerm}%`]);	
-    res.send(products);
-
-})
-
-app.post("/api/users/login", async (req,res) => {
-    const {email, password} = req.body;
-    const user = await db.get('SELECT * FROM USERS WHERE email = ? AND password = ?', [email, password]);	
-    // const user = mock_users.find(user => user.email === email && user.password === password);
-    console.log(user);
-    if(user){
-        res.send(generateTokenResponse(user));
-    }
-    else{
-        res.status(400).send("Invalid credentials");
-    }
-})
-
-const generateTokenResponse = (user:any) => {
-    const token = jwt.sign({
-        email: user.email
-    },  "secret", {	
-        expiresIn: "30d"
-    });
-
-    user.token = token;
-    return {'token' : token};
+app.get("/api/users", async (req, res) => {
+  const users = await db.all("SELECT * FROM USERS");
+  res.send(users);
 }
+);
+
+app.get("/api/users/:id", async (req, res) => {
+  const user = await db.get("SELECT * FROM USERS WHERE id = ?", [
+    req.params.id,
+  ]);
+  res.send(user);
+}
+);
+
+app.get("/api/users/email/:email", async (req, res) => {
+  const user = await db.get("SELECT * FROM USERS WHERE email = ?", [
+    req.params.email,
+  ]);
+  res.send(user);
+}
+);
+
+app.get("/api/users/password/:password", async (req, res) => {
+  const user = await db.get("SELECT * FROM USERS WHERE password = ?", [
+    req.params.password,
+  ]);
+  res.send(user);
+}
+  );
+
+app.post("/api/users/login", async (req, res) => {
+  const { email, password } = req.body;
+  const user = await db.get(
+    "SELECT * FROM USERS WHERE email = ? AND password = ?",
+    [email, password],
+  );
+  // const user = mock_users.find(user => user.email === email && user.password === password);
+  // console.log(user);
+  if (user) {
+    res.send(generateTokenResponse(user));
+  } else {
+    res.status(400).send("Invalid credentials");
+  }
+});
+
+app.post("/api/users/signup", async (req, res) => {
+  const { name, email, password } = req.body;
+  const user = await db.get("SELECT * FROM USERS WHERE email = ?", [email]);
+  console.log(user);
+  if (user) {
+    res.status(400).send("User already exists");
+  } else {
+    await db.run("INSERT INTO USERS (name, email, password) VALUES (?, ?, ?)", [
+      name,
+      email,
+      password,
+    ]);
+    res.send(generateTokenResponse({ email, password }));
+  }
+});
+
+app.post("/api/users/change-password", async (req, res) => {
+  const { email, currentPassword, newPassword } = req.body;
+  const user = await db.get(
+    "SELECT * FROM USERS WHERE email = ? AND password = ?",
+    [email, currentPassword],
+  );
+
+  if (!user) {
+    res.status(400).send("Invalid current password");
+    return;
+  }
+
+  await db.run(
+    "UPDATE USERS SET password = ? WHERE email = ?",
+    [newPassword, email],
+  );
+
+  res.send("Password changed successfully");
+});
+
+
+const generateTokenResponse = (user: any) => {
+  const token = jwt.sign(
+    {
+      email: user.email,
+    },
+    "secret",
+    {
+      expiresIn: "30d",
+    },
+  );
+
+  user.token = token;
+  return { token: token };
+};
 
 const port = 5000;
 app.listen(port, () => {
-    console.log(`Server started on port ${port}`);
-})
+  console.log(`Server started on port ${port}`);
+});
